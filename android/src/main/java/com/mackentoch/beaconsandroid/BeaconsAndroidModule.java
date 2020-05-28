@@ -3,8 +3,9 @@ package com.mackentoch.beaconsandroid;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.RemoteException;
+import android.support.annotation.Nullable;
 import android.util.Log;
-import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -289,7 +290,20 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
 
       @Override
       public void didDetermineStateForRegion(int i, Region region) {
-
+          String state = "unknown";
+          switch (i) {
+              case MonitorNotifier.INSIDE:
+                  state = "inside";
+                  break;
+              case MonitorNotifier.OUTSIDE:
+                  state = "outside";
+                  break;
+              default:
+                  break;
+          }
+          WritableMap map = createMonitoringResponse(region);
+          map.putString("state", state);
+          sendEvent(mReactContext, "didDetermineState", map);
       }
   };
 
@@ -360,12 +374,13 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
               b.putInt("minor", beacon.getId3().toInt());
           }
           b.putInt("rssi", beacon.getRssi());
-          if (beacon.getDistance() == Double.POSITIVE_INFINITY
+          if(beacon.getDistance() == Double.POSITIVE_INFINITY
                     || Double.isNaN(beacon.getDistance())
-                    || beacon.getDistance() == Double.NEGATIVE_INFINITY) {
+                    || beacon.getDistance() == Double.NaN
+                    || beacon.getDistance() == Double.NEGATIVE_INFINITY){
                 b.putDouble("distance", 999.0);
                 b.putString("proximity", "far");
-            } else {
+            }else {
                 b.putDouble("distance", beacon.getDistance());
                 b.putString("proximity", getProximity(beacon.getDistance()));
             }
@@ -397,6 +412,17 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
           Log.e(LOG_TAG, "stopRanging, error: ", e);
           reject.invoke(e.getMessage());
       }
+  }
+
+  @ReactMethod
+  public void requestStateForRegion(String regionId, String beaconUuid, int minor, int major) {
+      Region region = createRegion(
+        regionId,
+        beaconUuid,
+        String.valueOf(minor).equals("-1") ? "" : String.valueOf(minor),
+        String.valueOf(major).equals("-1") ? "" : String.valueOf(major)
+      );
+      mBeaconManager.requestStateForRegion(region);
   }
 
 
